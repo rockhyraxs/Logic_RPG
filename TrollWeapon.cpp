@@ -9,6 +9,8 @@
 #include "Sound/SoundCue.h"
 #include "Kismet/GameplayStatics.h"
 #include "Main.h"
+#include "AIController.h"
+
 
 
 
@@ -29,29 +31,14 @@ ATrollWeapon::ATrollWeapon()
 
 }
 
-//
-//void ATrollWeapon::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-//{
-//	Super::OnOverlapBegin(OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex, bFromSweep, SweepResult);
-//	if (OtherActor)
-//	{
-//		AEnemy* Enemy = Cast<AEnemy>(OtherActor);
-//		if (Enemy)
-//		{
-//			Equip(Enemy);
-//		}
-//	}
-//}
-//
-//void ATrollWeapon::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-//{
-//	Super::OnOverlapEnd(OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex);
-//}
+
 
 void ATrollWeapon::Equip(AEnemy* Char)
 {
 	if (Char)
 	{
+		SetInstigator(Char->GetController());
+
 		SkeletalMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 		SkeletalMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
 
@@ -86,10 +73,8 @@ void ATrollWeapon::CombatOnOverlapBegin(UPrimitiveComponent* OverlappedComponent
 	if (OtherActor)
 	{
 		AMain* Main = Cast<AMain>(OtherActor);
-		AEnemy* Enemy = GetWorld()->SpawnActor<AEnemy>(FVector::ZeroVector, FRotator::ZeroRotator);
 		
-			
-		
+
 		if (Main)
 		{
 			if (Main->HitParticles)
@@ -107,8 +92,8 @@ void ATrollWeapon::CombatOnOverlapBegin(UPrimitiveComponent* OverlappedComponent
 			}
 			if (DamageTypeClass)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("TakeDamage()"));
-				UGameplayStatics::ApplyDamage(Main, Damage, Enemy->GetController(), this, DamageTypeClass);
+				UE_LOG(LogTemp, Warning, TEXT("TakeDamage()")); 
+				UGameplayStatics::ApplyDamage(Main, Damage, AIController, this, DamageTypeClass);
 			}
 		}
 	}

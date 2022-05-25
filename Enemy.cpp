@@ -11,6 +11,7 @@
 #include "Sound/SoundCue.h"
 #include "TimerManager.h"
 #include "Components/CapsuleComponent.h"
+#include "MainPlayerController.h"
 
 // Sets default values
 AEnemy::AEnemy()
@@ -34,6 +35,12 @@ AEnemy::AEnemy()
 
 	AttackMinTime = 0.5f;
 	AttackMaxTime = 3.5f;
+
+	EnemyMovementStatus = EEnemyMovementStatus::EMS_Idle;
+
+	DeathDelay = 3.f;
+
+	bHasValidTarget = false;
 }
 
 // Called when the game starts or when spawned
@@ -77,7 +84,7 @@ void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 void  AEnemy::AgroSphereOnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (OtherActor)
+	if (OtherActor && Alive())
 	{
 		AMain* Main = Cast<AMain>(OtherActor);
 		if (Main)
@@ -95,6 +102,16 @@ void  AEnemy::AgroSphereOnOverlapEnd(UPrimitiveComponent* OverlappedComponent, A
 		{
 			if (Main)
 			{
+				bHasValidTarget = false;
+				if (Main->CombatTarget == this)
+				{
+					Main->SetCombatTarget(nullptr);
+				}
+				Main->SetHasCombatTarget(false);
+				if (Main->MainPlayerController)
+				{
+					Main->MainPlayerController->RemoveEnemyHealthBar();
+				}
 				SetEnemyMovementStatus(EEnemyMovementStatus::EMS_Idle);
 				if (AIController)
 				{
@@ -107,13 +124,19 @@ void  AEnemy::AgroSphereOnOverlapEnd(UPrimitiveComponent* OverlappedComponent, A
 
 void  AEnemy::CombatSphereOnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (OtherActor)
+	if (OtherActor && Alive())
 	{
 		AMain* Main = Cast<AMain>(OtherActor);
 		{
 			if (Main)
 			{
+				bHasValidTarget = true;
 				Main->SetCombatTarget(this);
+				Main->SetHasCombatTarget(true);
+				if (Main->MainPlayerController)
+				{
+					Main->MainPlayerController->DisplayEnemyHealthBar();
+				}
 				CombatTarget = Main;
 				bOverlappingCombatSphere = true;
 				Attack();
@@ -130,10 +153,6 @@ void  AEnemy::CombatSphereOnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
 		{
 			if (Main)
 			{
-				if (Main->CombatTarget == this)
-				{
-					Main->SetCombatTarget(nullptr);
-				}
 				bOverlappingCombatSphere = false;
 				if (EnemyMovementStatus != EEnemyMovementStatus::EMS_Attacking)
 				{
@@ -163,30 +182,33 @@ void AEnemy::MoveToTarget(AMain* Target)
 }
 void AEnemy::Attack()
 {
-	if (AIController)
+	if (Alive() && bHasValidTarget)
 	{
-		AIController->StopMovement();
-		SetEnemyMovementStatus(EEnemyMovementStatus::EMS_Attacking);
-	}
-	if (!bAttacking)
-	{
-		bAttacking = true;
-		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-		if (AnimInstance && CombatMontage)
+		if (AIController)
 		{
-			int32 Section = FMath::RandRange(0, 1);
-			switch (Section)
+			AIController->StopMovement();
+			SetEnemyMovementStatus(EEnemyMovementStatus::EMS_Attacking);
+		}
+		if (!bAttacking)
+		{
+			bAttacking = true;
+			UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+			if (AnimInstance && CombatMontage)
 			{
-			case 0:
-				AnimInstance->Montage_Play(CombatMontage, 2.2f);
-				AnimInstance->Montage_JumpToSection(FName("Attack_1"), CombatMontage);
-				break;
-			case 1:
-				AnimInstance->Montage_Play(CombatMontage, 1.8f);
-				AnimInstance->Montage_JumpToSection(FName("Attack_2"), CombatMontage);
-				break;
-			default:
-				;
+				int32 Section = FMath::RandRange(0, 1);
+				switch (Section)
+				{
+				case 0:
+					AnimInstance->Montage_Play(CombatMontage, 2.2f);
+					AnimInstance->Montage_JumpToSection(FName("Attack_1"), CombatMontage);
+					break;
+				case 1:
+					AnimInstance->Montage_Play(CombatMontage, 1.8f);
+					AnimInstance->Montage_JumpToSection(FName("Attack_2"), CombatMontage);
+					break;
+				default:
+					;
+				}
 			}
 		}
 	}
@@ -217,8 +239,8 @@ float AEnemy::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEv
 }
 
 void AEnemy::Die()
-{
-	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+{ 
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance(); 
 	if (AnimInstance && CombatMontage)
 	{
 		AnimInstance->Montage_Play(CombatMontage, 1.0f);
@@ -227,10 +249,28 @@ void AEnemy::Die()
 	SetEnemyMovementStatus(EEnemyMovementStatus::EMS_Dead);
 
 	/*ATrollWeapon* TrollWeapon = GetWorld()->SpawnActor<ATrollWeapon>(FVector::ZeroVector, FRotator::ZeroRotator);
-	CombatCollision = Cast<ABoxCollsion>(*TrollWeapon());*/
+	UBoxComponent CombatCollision = Cast<UBoxComponent>(TrollWeapon());
 
-	/*CombatCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);*/
+	TrollWeapon->CombatCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);*/
 	AgroSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CombatSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AEnemy::DeathEnd()
+{
+	GetMesh()->bPauseAnims = true;
+	GetMesh()->bNoSkeletonUpdate = true;
+
+	GetWorldTimerManager().SetTimer(DeathTimer, this, &AEnemy::Disappear, DeathDelay);
+}
+
+bool AEnemy::Alive()
+{
+	return GetEnemyMovementStatus() != EEnemyMovementStatus::EMS_Dead;
+}
+
+void AEnemy::Disappear()
+{
+	Destroy();
 }
