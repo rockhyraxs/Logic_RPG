@@ -26,7 +26,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item | Particles")
 	class UParticleSystemComponent* IdleParticlesComponent;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item | Particles")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item | Particles") 
 	class UParticleSystem* OverlapParticles;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item | Sounds")
